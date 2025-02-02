@@ -14,6 +14,18 @@ export class CountryController {
         private readonly countryService: CountryService,
     ) {}
 
+    @Get('filter-country')
+    async getCountriesAdmin(
+        @Query("page") page: number = 1,
+        @Query("size") size: number = 10,
+        @Query("continent") continent?: "Afrika" | "Azija" | "Evropa" | "Sjeverna Amerika" | "Južna Amerika" | "Okeanija",
+        @Query("search") search?: string,
+        @Query("sortBy") sortBy: "name" | "continent" = "name",
+        @Query("sortOrder") sortOrder: "ASC" | "DESC" = "ASC"
+    ) {
+        return this.countryService.getCountriesAdmin(page, size, continent, search, sortBy, sortOrder);
+    }
+
     @Get()
     async getAllCountry(): Promise<Country[]> {
         return await this.countryService.getAllCountry();

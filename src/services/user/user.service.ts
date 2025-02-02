@@ -11,11 +11,13 @@ export class UserService {
     ) {}
 
     async findUsers(): Promise<User[]> {
-        return await this.userRepository.find();
+        return await this.userRepository.find({
+            relations: ['gameAttempts', 'scores']
+        });
     }
 
     async findUserById(userId: number): Promise<User | ApiResponse> {
-        const user = await this.userRepository.findOne({where: {userId}});
+        const user = await this.userRepository.findOne({where: {userId},  relations: ['gameAttempts', 'scores']});
         if (!user) {
             return new ApiResponse('error', -1001, 'User not found.')
         }
@@ -23,7 +25,7 @@ export class UserService {
     };
 
     async findUserByUsername(username: string): Promise<User | ApiResponse> {
-        const user = await this.userRepository.findOne({where: {username}});
+        const user = await this.userRepository.findOne({where: {username},  relations: ['gameAttempts', 'scores']});
         if (!user) {
             return new ApiResponse('error', -1001, 'User not found.')
         }

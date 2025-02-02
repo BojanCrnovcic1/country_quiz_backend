@@ -1,10 +1,16 @@
 import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Score } from 'src/entities/score.entity';
 import { GameService } from 'src/services/game/game.service';
 
 
 @Controller('api/game')
 export class GameController {
     constructor(private readonly gameService: GameService) {}
+
+    @Get('score-list')
+    getScoreList(): Promise<Score[]> {
+        return this.gameService.getLeaderboard();
+    }
 
     @Get('generate-letters')
     generateRandomLetters() {

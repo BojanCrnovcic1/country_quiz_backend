@@ -11,6 +11,40 @@ export class CountryService {
         @InjectRepository(Country) private readonly countryRepository: Repository<Country>,
     ) {}
 
+    async getCountriesAdmin(
+        page: number = 1,
+        size: number = 10,
+        continent?: "Afrika" | "Azija" | "Evropa" | "Sjeverna Amerika" | "Južna Amerika" | "Okeanija",
+        search?: string,
+        sortBy: "name" | "continent" = "name",
+        sortOrder: "ASC" | "DESC" = "ASC"
+    ): Promise<{ data: Country[]; total: number; page: number; size: number }> {
+        const whereCondition: any = {};
+        
+        if (continent) {
+            whereCondition.continent = continent;
+        }
+        
+        if (search) {
+            whereCondition.name = `%${search}%`;
+        }
+        
+        const [data, total] = await this.countryRepository.findAndCount({
+            where: whereCondition,
+            relations: ['gameAttempts'],
+            take: size,
+            skip: (page - 1) * size,
+            order: { [sortBy]: sortOrder }
+        });
+    
+        return {
+            data,
+            total,
+            page,
+            size
+        };
+    }    
+
     async getAllCountry(): Promise<Country[]> {
         return await this.countryRepository.find({
             relations: ['gameAttempts']
