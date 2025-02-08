@@ -31,15 +31,6 @@ export class CountryController {
         return await this.countryService.getAllCountry();
     }
 
-    @Get('/continent/:continent')
-    async getCountriesByContinent(@Param('continent') continent: string): Promise<Country[] | ApiResponse> {
-        const validContinents = ["Afrika", "Azija", "Evropa", "Sjeverna Amerika", "Južna Amerika", "Okeanija"];
-        if (!validContinents.includes(continent)) {
-            return new ApiResponse('error', -2004, 'Invalid continent name.');
-        }
-        return this.countryService.getCountriesByContinent(continent as any);
-    }
-
     @Get(':id')
     async getCountryById(@Param('id') countryId: number): Promise<Country | ApiResponse> {
         return await this.countryService.getCountryById(countryId);
@@ -50,6 +41,15 @@ export class CountryController {
         return await this.countryService.getCountyByName(name);
     }
 
+    @Get('/continent/:continent')
+    async getCountriesByContinent(@Param('continent') continent: string): Promise<Country[] | ApiResponse> {
+        const validContinents = ["Afrika", "Azija", "Evropa", "Sjeverna Amerika", "Južna Amerika", "Okeanija"];
+        if (!validContinents.includes(continent)) {
+            return new ApiResponse('error', -2004, 'Invalid continent name.');
+        }
+        return this.countryService.getCountriesByContinent(continent as any);
+    }
+
     @Post('addCountry')
     @UseInterceptors(FileInterceptor('flag', {
         storage: multer.diskStorage({
@@ -57,25 +57,30 @@ export class CountryController {
             filename: (req, file, cb) => {
                 const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
                 cb(null, file.fieldname + '-' + uniqueSuffix + file.originalname);
-              },
+            },
         }),
         fileFilter(req, file, cb) {
             const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif'];
             const ext = extname(file.originalname).toLowerCase();
             if (allowedExtensions.includes(ext)) {
-            cb(null, true);
+                cb(null, true);
+            }
         }
-    }}))
+    }))
     async addNewCountry(@UploadedFile() file: Express.Multer.File, @Body() data: AddCountryDto): Promise<Country | ApiResponse> {
-        const newCountryData: AddCountryDto = { 
-            ...data, 
-            flagUrl: file ? file.path : ''
-          }; 
+        let flagUrl = ''; // Initialize flagUrl
+    
         if (file) {
-          newCountryData.flagUrl = file.path; 
+            // Use file.filename instead of file.path
+            flagUrl = file.filename;  //  <--- This is the key change
         }
     
-        return this.countryService.addCountry(newCountryData); 
+        const newCountryData: AddCountryDto = {
+            ...data,
+            flagUrl: flagUrl // Assign the filename
+        };
+    
+        return this.countryService.addCountry(newCountryData);
     }
 
     @Patch(':id/editCountry')

@@ -4,6 +4,7 @@ import { Country } from 'src/entities/country.entity';
 import { GameAttempt } from 'src/entities/game-attempt.entity';
 import { Score } from 'src/entities/score.entity';
 import { User } from 'src/entities/user.entity';
+import { ApiResponse } from 'src/misc/api.response.class';
 import { GameType } from 'src/misc/game.type';
 import { Repository } from 'typeorm';
 
@@ -28,24 +29,58 @@ export class GameService {
     await this.scoreRepository.save({ userId, totalScore: 0 });
   }
 
-  async generateRandomLetters(): Promise<string> {
+  async generateRandomLetters(): Promise<string[]> {
     const letters = 'abcčćdđefghijklmnoprsštuvzž';
-    let randomLetters = '';
+    const randomLetters: string[] = [];
+
     for (let i = 0; i < 30; i++) {
-      randomLetters += letters.charAt(Math.floor(Math.random() * letters.length));
+        randomLetters.push(letters.charAt(Math.floor(Math.random() * letters.length)));
     }
+
     return randomLetters;
   }
 
-  async checkCountry(userId: number, word: string): Promise<number> {
-    const country = await this.countryRepository.findOne({ where: { name: word } });
-    if (!country) throw new BadRequestException('Država ne postoji!');
+  async checkCountry(userId: number, selectedLetters: any): Promise<{ points: number, response?: ApiResponse }> {
+    if (!userId) {
+        throw new BadRequestException('Niste poslali userId!');
+    }
+
+    if (!selectedLetters) {
+        throw new BadRequestException('Niste poslali slova za proveru!');
+    }
+
+    let word: string;
+
+    if (Array.isArray(selectedLetters)) {
+        word = selectedLetters.join('');
+    } else if (typeof selectedLetters === 'string') {
+        word = selectedLetters;
+    } else {
+        throw new BadRequestException('selectedLetters mora biti string ili niz slova!');
+    }
+
+    word = word.toLowerCase().replace(/\s+/g, ' ').trim();
+   
+    const country = await this.countryRepository.findOne({ 
+        where: { name: word }
+    });
+
+    if (!country) {
+        return {
+            points: 0,
+            response: new ApiResponse('error', -2001, 'Country is not found.')
+        };
+    }
+
+    const points = word.replace(/\s/g, '').length;
+
+      await this.updateScore(userId, points);
+      await this.saveGameAttempt(userId, country.countryId, GameType.GENERISANJE_RIJECI, word, true, points);
     
-    const points = word.length;
-    await this.updateScore(userId, points);
-    await this.saveGameAttempt(userId, country.countryId, GameType.GENERISANJE_RIJECI, word, true, points);
-    return points;
+      return { points };
   }
+
+
 
   async getRandomCountryWithContinents(): Promise<Country> {
     return this.countryRepository.createQueryBuilder('country')
@@ -72,7 +107,9 @@ export class GameService {
 
   async checkFlag(userId: number, country: string, guess: string): Promise<number> {
     const countryEntity = await this.countryRepository.findOne({ where: { name: country } });
-    if (!countryEntity) throw new BadRequestException('Država ne postoji!');
+    if (!countryEntity) {
+        return 0;
+    };
 
     const isCorrect = countryEntity.name.toLowerCase() === guess.toLowerCase();
     const points = isCorrect ? 8 : 0;

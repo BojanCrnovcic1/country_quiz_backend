@@ -1,5 +1,7 @@
 import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Country } from 'src/entities/country.entity';
 import { Score } from 'src/entities/score.entity';
+import { ApiResponse } from 'src/misc/api.response.class';
 import { GameService } from 'src/services/game/game.service';
 
 
@@ -13,22 +15,25 @@ export class GameController {
     }
 
     @Get('generate-letters')
-    generateRandomLetters() {
+    generateRandomLetters(): Promise<string[]> {
         return this.gameService.generateRandomLetters();
     }
 
     @Post('check-country')
-    checkCountry(@Body() { userId, word }: { userId: number, word: string }) {
-        return this.gameService.checkCountry(userId, word);
+    checkCountry(@Body() { userId, selectedLetters }: { userId: number, selectedLetters: string[] })
+    : Promise<{ points: number, response?: ApiResponse }> {
+        return this.gameService.checkCountry(userId, selectedLetters);
     }
 
     @Get('random-country-continent')
-    getRandomCountryWithContinents() {
+    getRandomCountryWithContinents(): Promise<Country> {
         return this.gameService.getRandomCountryWithContinents();
     }
 
     @Post('check-continent')
-    checkContinent(@Body() { userId, country, continent }: { userId: number, country: string, continent: string }) {
+    checkContinent(@Body() { userId, country, continent }: { userId: number, country: string, continent: string })
+    : Promise <number>
+    {
         return this.gameService.checkContinent(userId, country, continent);
     }
 
@@ -58,7 +63,7 @@ export class GameController {
     }
 
     @Post('check-flags')
-    checkFlags() {
-        return this.checkFlags();
+    checkFlags(@Body(){ userId, country, flag}: {userId: number, country: string, flag: string}) {
+        return this.gameService.checkFlagSelection(userId, country, flag);
     }
 }
