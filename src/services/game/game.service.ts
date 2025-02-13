@@ -4,10 +4,8 @@ import { Country } from 'src/entities/country.entity';
 import { GameAttempt } from 'src/entities/game-attempt.entity';
 import { Score } from 'src/entities/score.entity';
 import { User } from 'src/entities/user.entity';
-import { ApiResponse } from 'src/misc/api.response.class';
 import { GameType } from 'src/misc/game.type';
 import { Repository } from 'typeorm';
-
 
 @Injectable()
 export class GameService {
@@ -29,18 +27,34 @@ export class GameService {
     await this.scoreRepository.save({ userId, totalScore: 0 });
   }
 
-  async generateRandomLetters(): Promise<string[]> {
+async generateRandomLetters(): Promise<string[]> {
     const letters = 'abcčćdđefghijklmnoprsštuvzž';
-    const randomLetters: string[] = [];
 
-    for (let i = 0; i < 30; i++) {
-        randomLetters.push(letters.charAt(Math.floor(Math.random() * letters.length)));
+    const randomCountry = await this.countryRepository
+        .createQueryBuilder("country")
+        .orderBy("RAND()")
+        .limit(1)
+        .getOne();   
+
+    if (!randomCountry) {
+        throw new Error("Nema dostupnih država u bazi.");
     }
 
-    return randomLetters;
-  }
+    let countryLetters = randomCountry.name.toLowerCase().replace(/\s+/g, '').split(''); 
 
-  async checkCountry(userId: number, selectedLetters: any): Promise<{ points: number, response?: ApiResponse }> {
+    while (countryLetters.length < 30) {
+        countryLetters.push(letters.charAt(Math.floor(Math.random() * letters.length)));
+    }
+
+    for (let i = countryLetters.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [countryLetters[i], countryLetters[j]] = [countryLetters[j], countryLetters[i]];
+    }
+
+    return countryLetters;
+}
+
+async checkCountry(userId: number, selectedLetters: any, allGeneratedLetters?: string[]): Promise<{ points: number, longestWord?: string }> {
     if (!userId) {
         throw new BadRequestException('Niste poslali userId!');
     }
@@ -50,7 +64,6 @@ export class GameService {
     }
 
     let word: string;
-
     if (Array.isArray(selectedLetters)) {
         word = selectedLetters.join('');
     } else if (typeof selectedLetters === 'string') {
@@ -59,27 +72,25 @@ export class GameService {
         throw new BadRequestException('selectedLetters mora biti string ili niz slova!');
     }
 
-    word = word.toLowerCase().replace(/\s+/g, ' ').trim();
-   
-    const country = await this.countryRepository.findOne({ 
-        where: { name: word }
-    });
+    word = word.toLowerCase().replace(/\s+/g, '').trim();
+    const availableLetters = word.split("");
 
-    if (!country) {
-        return {
-            points: 0,
-            response: new ApiResponse('error', -2001, 'Country is not found.')
-        };
+    const existingCountry = await this.countryRepository.findOne({ where: { name: word } });
+
+    if (!existingCountry) {
+
+        const longestWord = allGeneratedLetters ? await this.findLongestWord(allGeneratedLetters) : undefined;
+
+        return { points: 0, longestWord };
     }
 
     const points = word.replace(/\s/g, '').length;
+    await this.updateScore(userId, points);
 
-      await this.updateScore(userId, points);
-      await this.saveGameAttempt(userId, country.countryId, GameType.GENERISANJE_RIJECI, word, true, points);
-    
-      return { points };
-  }
+    const longestWord = allGeneratedLetters ? await this.findLongestWord(allGeneratedLetters) : undefined;
 
+    return { points, longestWord };
+}
 
 
   async getRandomCountryWithContinents(): Promise<Country> {
@@ -109,14 +120,30 @@ export class GameService {
     const countryEntity = await this.countryRepository.findOne({ where: { name: country } });
     if (!countryEntity) {
         return 0;
+    }
+
+    const normalizeText = (text: string): string => {
+        return text
+            .toLowerCase()
+            .replace(/č/g, 'c')
+            .replace(/ć/g, 'c')
+            .replace(/đ/g, 'dj')
+            .replace(/š/g, 's')
+            .replace(/ž/g, 'z');
     };
 
-    const isCorrect = countryEntity.name.toLowerCase() === guess.toLowerCase();
+    const normalizedCountryName = normalizeText(countryEntity.name);
+    const normalizedGuess = normalizeText(guess);
+
+    const isCorrect = normalizedCountryName === normalizedGuess;
     const points = isCorrect ? 8 : 0;
+
     await this.updateScore(userId, points);
     await this.saveGameAttempt(userId, countryEntity.countryId, GameType.ZASTAVA_POGADJANJE, guess, isCorrect, points);
+
     return points;
-  }
+}
+
 
   async getRandomCountryWithCapitals(): Promise<any> {
     const countries = await this.countryRepository.createQueryBuilder('country')
@@ -181,8 +208,62 @@ export class GameService {
     return points;
   }
 
+  async getRandomCountryPopulation(): Promise<Country[]> {
+    const totalCount = await this.countryRepository.count();
+
+    if (totalCount < 2) {
+        throw new BadRequestException('Nema dovoljno država u bazi.');
+    }
+
+    const countries = await this.countryRepository.createQueryBuilder('country')
+        .orderBy('RAND()')
+        .take(2)
+        .getMany();
+
+    if (!countries.length) {
+        throw new BadRequestException('Neuspiješno dobijanje država.');
+    }
+
+    return countries;
+}
+
+async checkPopulationAnswer(userId: number, countryId: number, question: any): Promise<number> {
+    if (!question?.populations || !Array.isArray(question.populations) || question.populations.length !== 2) {
+        throw new BadRequestException('Pitanje mora sadržati tačno dve države.');
+    }
+
+    const selectedCountry = question.populations.find((c: any) => c.countryId === countryId);
+    if (!selectedCountry) {
+        throw new BadRequestException('Izabrana država ne postoji u pitanju.');
+    }
+
+    const [firstCountry, secondCountry] = question.populations;
+
+    if (!firstCountry || !secondCountry || firstCountry.population === undefined || secondCountry.population === undefined) {
+        throw new BadRequestException('Podaci o populaciji nisu validni.');
+    }
+
+    if (firstCountry.population === secondCountry.population) {
+        await this.saveGameAttempt(userId, countryId, GameType.POPULACIJA_POGADJANJE, JSON.stringify(question), null, 0);
+        return 0;
+    }
+
+    const correctAnswer = firstCountry.population > secondCountry.population
+        ? firstCountry.countryId
+        : secondCountry.countryId;
+
+    const points = countryId === correctAnswer ? 5 : -2;
+
+    await this.updateScore(userId, points);
+
+    await this.saveGameAttempt(userId, countryId, GameType.POPULACIJA_POGADJANJE, JSON.stringify(question), correctAnswer, points);
+
+    return points;
+}
+
+
   async getLeaderboard(): Promise<Score[]> {
-    return this.scoreRepository.find({ order: { totalScore: 'DESC' }, take: 10 });
+    return this.scoreRepository.find({relations: ['user'], order: { totalScore: 'DESC' } });
   }
 
   
@@ -203,7 +284,6 @@ export class GameService {
     });
   }
   
-
   private async updateScore(userId: number, points: number) {
     const score = await this.scoreRepository.findOne({ where: { userId } });
     if (score) {
@@ -213,4 +293,37 @@ export class GameService {
       await this.scoreRepository.save({ userId, totalScore: points });
     }
   }
+
+  private async findLongestWord(availableLetters: string[]): Promise<string> {
+    const allWords = await this.countryRepository.find();
+    let longestWord = "";
+    let longestOriginal = "";
+
+    for (const country of allWords) {
+        const wordWithoutSpaces = country.name.toLowerCase().replace(/\s+/g, '').trim();
+        
+        if (this.canFormWord(wordWithoutSpaces, availableLetters)) {          
+            if (wordWithoutSpaces.length > longestWord.length) {
+                longestWord = wordWithoutSpaces;
+                longestOriginal = country.name; 
+            }
+        }
+    }
+
+    return longestOriginal || "Nema moguće reči";
+}
+
+private canFormWord(word: string, availableLetters: string[]): boolean {
+    let lettersCopy = [...availableLetters];
+
+    for (const letter of word) {
+        const index = lettersCopy.indexOf(letter);
+        if (index === -1) {
+            return false;
+        }
+        lettersCopy.splice(index, 1);
+    }
+
+    return true;
+}
 }

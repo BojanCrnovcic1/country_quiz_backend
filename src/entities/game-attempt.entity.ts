@@ -29,7 +29,7 @@ export class GameAttempt {
   @Column("int", { name: "country_id", unsigned: true, default: () => "'0'" })
   countryId: number;
 
-  @Column("varchar", { name: "answer", length: 255, default: () => "'0'" })
+  @Column("varchar", { name: "answer", length: 500, default: () => "'0'" })
   answer: string;
 
   @Column("tinyint", { name: "is_correct", width: 1, default: () => "'1'" })

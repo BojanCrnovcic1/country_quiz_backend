@@ -45,7 +45,7 @@ export class UserController {
         }
     }}))
     async loginPlayer(@Body() body: { username: string }, @UploadedFile() file: Express.Multer.File): Promise<User | ApiResponse> {
-        const profilePictureUrl = file ? file.path : null;
+        const profilePictureUrl = file ? file.filename : null;
 
         return await this.userService.createUser(body.username, profilePictureUrl);
     }

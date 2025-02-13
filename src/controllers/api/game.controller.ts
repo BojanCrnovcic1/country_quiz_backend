@@ -1,9 +1,7 @@
 import { Controller, Get, Post, Body } from '@nestjs/common';
 import { Country } from 'src/entities/country.entity';
 import { Score } from 'src/entities/score.entity';
-import { ApiResponse } from 'src/misc/api.response.class';
 import { GameService } from 'src/services/game/game.service';
-
 
 @Controller('api/game')
 export class GameController {
@@ -20,11 +18,12 @@ export class GameController {
     }
 
     @Post('check-country')
-    checkCountry(@Body() { userId, selectedLetters }: { userId: number, selectedLetters: string[] })
-    : Promise<{ points: number, response?: ApiResponse }> {
-        return this.gameService.checkCountry(userId, selectedLetters);
-    }
-
+    async checkCountry(
+        @Body() { userId, selectedLetters, allGeneratedLetters }: { userId: number; selectedLetters: string[]; allGeneratedLetters?: string[] }
+    ): Promise<{ points: number; longestWord?: string }> {
+        return this.gameService.checkCountry(userId, selectedLetters, allGeneratedLetters || []);
+    } 
+    
     @Get('random-country-continent')
     getRandomCountryWithContinents(): Promise<Country> {
         return this.gameService.getRandomCountryWithContinents();
@@ -65,5 +64,15 @@ export class GameController {
     @Post('check-flags')
     checkFlags(@Body(){ userId, country, flag}: {userId: number, country: string, flag: string}) {
         return this.gameService.checkFlagSelection(userId, country, flag);
+    }
+
+    @Get('random-population')
+    getRandomCountryPopulation(): Promise<Country[]> {
+        return this.gameService.getRandomCountryPopulation();
+    }
+
+    @Post('check-population')
+    async checkPopulation(@Body() body: { userId: number; countryId: number; question: any }) {
+        return await this.gameService.checkPopulationAnswer(body.userId, body.countryId, body.question);
     }
 }

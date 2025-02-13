@@ -68,16 +68,15 @@ export class CountryController {
         }
     }))
     async addNewCountry(@UploadedFile() file: Express.Multer.File, @Body() data: AddCountryDto): Promise<Country | ApiResponse> {
-        let flagUrl = ''; // Initialize flagUrl
+        let flagUrl = '';
     
         if (file) {
-            // Use file.filename instead of file.path
-            flagUrl = file.filename;  //  <--- This is the key change
+            flagUrl = file.filename; 
         }
     
         const newCountryData: AddCountryDto = {
             ...data,
-            flagUrl: flagUrl // Assign the filename
+            flagUrl: flagUrl
         };
     
         return this.countryService.addCountry(newCountryData);

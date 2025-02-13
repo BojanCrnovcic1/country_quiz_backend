@@ -38,6 +38,9 @@ export class Country {
   @Column("varchar", { name: "capital", length: 100 })
   capital: string;
 
+  @Column("int", { name: "population", unsigned: true, default: 0 })
+  population: number;
+
   @Column("varchar", { name: "flag_url", length: 255 })
   flagUrl: string;
 
