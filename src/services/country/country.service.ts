@@ -3,7 +3,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { AddCountryDto } from "src/dtos/country/add.country.dto";
 import { Country } from "src/entities/country.entity";
 import { ApiResponse } from "src/misc/api.response.class";
-import { Repository } from "typeorm";
+import { Like, Repository } from "typeorm";
 
 @Injectable()
 export class CountryService {
@@ -16,7 +16,7 @@ export class CountryService {
         size: number = 10,
         continent?: "Afrika" | "Azija" | "Evropa" | "Sjeverna Amerika" | "Južna Amerika" | "Okeanija",
         search?: string,
-        sortBy: "name" | "continent" = "name",
+        sortBy: "name" | "continent" | "population" = "name",
         sortOrder: "ASC" | "DESC" = "ASC"
     ): Promise<{ data: Country[]; total: number; page: number; size: number }> {
         const whereCondition: any = {};
@@ -26,7 +26,7 @@ export class CountryService {
         }
         
         if (search) {
-            whereCondition.name = `%${search}%`;
+            whereCondition.name = Like(`%${search}%`);
         }
         
         const [data, total] = await this.countryRepository.findAndCount({
@@ -88,6 +88,7 @@ export class CountryService {
         if (!saveCountry) {
             return new ApiResponse('error', -2003, 'Country not saved.')
         }
+        
         return saveCountry;
     }
 
