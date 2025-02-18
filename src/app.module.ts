@@ -29,7 +29,7 @@ import { jwtSecret } from 'config/jwt.secret';
     TypeOrmModule.forRoot({
       type: 'mysql',
       host: DatabaseConfig.host,
-      port: 3306,
+      port: 3307,
       username: DatabaseConfig.username,
       password: DatabaseConfig.password,
       database: DatabaseConfig.database,

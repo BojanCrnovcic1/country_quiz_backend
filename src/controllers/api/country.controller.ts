@@ -6,6 +6,7 @@ import { extname } from "path";
 import { AddCountryDto } from "src/dtos/country/add.country.dto";
 import { Country } from "src/entities/country.entity";
 import { ApiResponse } from "src/misc/api.response.class";
+import { supabase } from "src/misc/supabase.client";
 import { CountryService } from "src/services/country/country.service";
 
 @Controller('api/country')
@@ -51,27 +52,32 @@ export class CountryController {
     }
 
     @Post('addCountry')
-    @UseInterceptors(FileInterceptor('flag', {
-        storage: multer.diskStorage({
-            destination: StorageConfig.flags.destination,
-            filename: (req, file, cb) => {
-                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-                cb(null, file.fieldname + '-' + uniqueSuffix + file.originalname);
-            },
-        }),
-        fileFilter(req, file, cb) {
-            const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif'];
-            const ext = extname(file.originalname).toLowerCase();
-            if (allowedExtensions.includes(ext)) {
-                cb(null, true);
-            }
-        }
-    }))
-    async addNewCountry(@UploadedFile() file: Express.Multer.File, @Body() data: AddCountryDto): Promise<Country | ApiResponse> {
+    @UseInterceptors(FileInterceptor('flag'))
+    async addNewCountry(
+        @UploadedFile() file: Express.Multer.File,
+        @Body() data: AddCountryDto
+    ): Promise<Country | ApiResponse> {
         let flagUrl = '';
     
         if (file) {
-            flagUrl = file.filename; 
+            const fileExt = extname(file.originalname);
+            const fileName = `flag-${Date.now()}-${Math.round(Math.random() * 1e9)}${fileExt}`;
+    
+            const { data: uploadData, error } = await supabase.storage
+                .from('flags') 
+                .upload(fileName, file.buffer, {
+                    contentType: file.mimetype,
+                });
+    
+            if (error) {
+                throw new Error(`Greška pri uploadu zastave: ${error.message}`);
+            }
+    
+            const { data: publicURLData } = supabase.storage
+                .from('flags')
+                .getPublicUrl(fileName);
+    
+            flagUrl = publicURLData.publicUrl;
         }
     
         const newCountryData: AddCountryDto = {

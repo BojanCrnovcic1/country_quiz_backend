@@ -5,6 +5,7 @@ import * as multer from "multer";
 import { extname } from "path";
 import { User } from "src/entities/user.entity";
 import { ApiResponse } from "src/misc/api.response.class";
+import { supabase } from "src/misc/supabase.client";
 import { UserService } from "src/services/user/user.service";
 
 @Controller('api/user')
@@ -29,24 +30,34 @@ export class UserController {
     }
 
     @Post('login')
-    @UseInterceptors(FileInterceptor('profile', {
-        storage: multer.diskStorage({
-            destination: StorageConfig.profile.destination,
-            filename: (req, file, cb) => {
-                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-                cb(null, file.fieldname + '-' + uniqueSuffix + file.originalname);
-              },
-        }),
-        fileFilter(req, file, cb) {
-            const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif'];
-            const ext = extname(file.originalname).toLowerCase();
-            if (allowedExtensions.includes(ext)) {
-            cb(null, true);
+    @UseInterceptors(FileInterceptor('profile'))
+    async loginPlayer(
+        @Body() body: { username: string },
+        @UploadedFile() file: Express.Multer.File
+    ): Promise<User | ApiResponse> {
+        if (!file) {
+            return this.userService.createUser(body.username, null);
         }
-    }}))
-    async loginPlayer(@Body() body: { username: string }, @UploadedFile() file: Express.Multer.File): Promise<User | ApiResponse> {
-        const profilePictureUrl = file ? file.filename : null;
 
-        return await this.userService.createUser(body.username, profilePictureUrl);
+        const fileExt = extname(file.originalname);
+        const fileName = `profile-${Date.now()}-${Math.round(Math.random() * 1e9)}${fileExt}`;
+
+        const { data, error } = await supabase.storage
+            .from('profile')
+            .upload(fileName, file.buffer, {
+                contentType: file.mimetype,
+            });
+
+        if (error) {
+            throw new Error(`Greška pri uploadu slike: ${error.message}`);
+        }
+
+        const { data: publicURLData } = supabase.storage
+            .from('profile')
+            .getPublicUrl(fileName);
+    
+        const profilePictureUrl = publicURLData.publicUrl;
+
+        return this.userService.createUser(body.username, profilePictureUrl);
     }
 }
